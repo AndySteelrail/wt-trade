@@ -113,22 +113,9 @@ public class TelegramBackgroundService : BackgroundService, ITelegramNotificatio
         }
 
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var task = service.StartSellingAsync(chatId, cts.Token)
-            .ContinueWith(async t =>
-            {
-                _activeOperations.TryRemove(chatId, out _);
-                if (t.IsCompletedSuccessfully)
-                {
-                    await SendMessageAsync(chatId, t.Result);
-                }
-                else if (t.IsFaulted)
-                {
-                    await SendMessageAsync(chatId, $"Ошибка: {t.Exception?.Message}");
-                }
-                cts.Dispose();
-            }, TaskScheduler.Default);
+        var task = service.StartSellingAsync(chatId, cts.Token);
 
-        _activeOperations.TryAdd(chatId, (task.Unwrap(), cts));
+        _activeOperations.TryAdd(chatId, (task, cts));
     }
 
     private async Task CancelActiveOperation(long chatId, ITelegramBotClient botClient, CancellationToken cancellationToken)
