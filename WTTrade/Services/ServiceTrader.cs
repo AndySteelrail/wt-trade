@@ -143,9 +143,16 @@ public class ServiceTrader
         return message;
     }
 
-    private async Task<string> CreateOrderBuyAsync(int value, int amount, decimal balance)
+    private async Task<string> CreateOrderBuyAsync(int value, int amount, Balance balance)
     {
+        decimal currentBalance = balance.Value;
+        Console.WriteLine($"Текущий остаток по балансу: {currentBalance}");
         string type = "на покупку";
+        if (currentBalance <= 10000m)
+        {
+            return "Баланс составляет меньше или равен 1,00 gjn";
+        }
+        
         string message = "Лот не нужно покупать";
 
         Item item = await _serviceInformer.GetItemAsync(value);
@@ -154,26 +161,46 @@ public class ServiceTrader
         {
             return message;
         }
-        
+
+        string nameInBold = item.GetNameInBold();
         string hashName = item.GetMarketHashName();
-        WTOrderBrief wtOrderBrief = await _httpService.GetOrderBriefAsync(hashName);
+
+        WTOrderBrief wtOrderBrief;
+        
+        try
+        {
+            wtOrderBrief = await _httpService.GetOrderBriefAsync(hashName);
+        }
+        catch (Exception e)
+        {
+            return $"Ошибка получения лота товара: {nameInBold}";
+        }
         
         decimal bestPrice = _priceCalculator.CalcBuyPrice(wtOrderBrief, value);
         decimal price = _priceCalculator.CalcDiscountPrice(bestPrice, type);
-        int allowableAmount = _priceCalculator.CalcAllowableAmount(amount, price, balance);
+        int allowableAmount = _priceCalculator.CalcAllowableAmount(amount, price, currentBalance);
 
         if (price <= 1300m || allowableAmount == 0)
         {
             return message;
         }
 
-        WTHttpResponse wtHttpResponse = await _httpService.CreateOrderBuyAsync(hashName, allowableAmount, price);
-        message = TraderMessages.CreateOrder(
-            item.GetNameInBold(),
-            type,
-            price / 10000,
-            allowableAmount,
-            wtHttpResponse.Status());
+        try
+        {
+            WTHttpResponse wtHttpResponse = await _httpService.CreateOrderBuyAsync(hashName, allowableAmount, price);
+            message = TraderMessages.CreateOrder(
+                nameInBold,
+                type,
+                price / 10000,
+                allowableAmount,
+                wtHttpResponse.Status());
+
+            balance.Value -= allowableAmount * price;
+        }
+        catch (Exception e)
+        {
+            return $"Ошибка при выставлении заявки: {nameInBold} в количестве {allowableAmount} по цене {price / 10000} gjn";;
+        }
         
         return message;
     }
@@ -292,8 +319,10 @@ public class ServiceTrader
 
     private async Task CreateBuyOrders(Dictionary<int, int> shoppingList, long chatId, CancellationToken cancellationToken)
     {
-        WTBalance curWtBalance = await _httpService.GetBalanceAsync();
-        decimal balance = curWtBalance.GetValue();
+        WTBalance currentWtBalance = await _httpService.GetBalanceAsync();
+        Balance balance = new Balance(
+            currentWtBalance.GetValue());
+        
         foreach (var pair in shoppingList)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -304,6 +333,11 @@ public class ServiceTrader
                 if (response == "Лот не нужно покупать")
                 {
                     TryChangeValue(shoppingList, pair.Key, -pair.Value);
+                }
+                else if (response == "Баланс составляет меньше или равен 1,00 gjn")
+                {
+                    await _telegramService.SendMessageAsync(chatId, "Баланс составляет меньше или равен 1,00 gjn. Процесс выставления заявок на покупку остановлен.");
+                    break;
                 }
                 else
                 {
@@ -317,7 +351,7 @@ public class ServiceTrader
             catch (Exception ex)
             {
                 Console.WriteLine(ex.StackTrace);
-                await _telegramService.SendMessageAsync(chatId, "Ошибка при выставлении заявки на покупку : {_serviceInformer.GetItemAsync(pair.Key)}");
+                await _telegramService.SendMessageAsync(chatId, $"Ошибка при выставлении заявки на покупку : {_serviceInformer.GetItemAsync(pair.Key)}");
             }
         }
             

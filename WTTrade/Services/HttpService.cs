@@ -102,13 +102,13 @@ public class HttpService
             { "count" , "26" },
             { "text" , name },
             { "language" , "ru_RU" },
-            { "options" , "" } ,
+            { "options" , "any_sell_orders;include_marketpairs" } ,
             { "appid_filter" , "1067" }
         };
         
         WTMarketSearch wtMarketSearch = 
             await MakeRequest<WTMarketSearch>(HttpMethod.Post, url, null, payload);
-            
+        
         return Convert.ToInt32(wtMarketSearch.GetValue(name));
     }
     
