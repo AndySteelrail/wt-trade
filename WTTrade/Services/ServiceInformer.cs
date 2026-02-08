@@ -10,16 +10,16 @@ public class ServiceInformer
     
     private readonly Dictionary<string, int> _hashNameValues;
     private readonly Dictionary<string, int> _nameValues;
-    private readonly Dictionary<int, Item> _valueItems;
+    private readonly Dictionary<int, AppItem> _valueItems;
 
     public ServiceInformer(HttpService httpClient, DataBaseService dataBaseService)
     {
         _httpService = httpClient;
         _dataBaseService = dataBaseService;
         
-        _hashNameValues = _dataBaseService.GetHashNameValues();
-        _nameValues = _dataBaseService.GetNameValues();
-        _valueItems = _dataBaseService.GetValueItems();
+        _hashNameValues = dataBaseService.GetHashNameValues();
+        _nameValues = dataBaseService.GetNameValues();
+        _valueItems = dataBaseService.GetValueItems();
     }
     
     public async Task<string> GetBalanceAsync()
@@ -43,26 +43,26 @@ public class ServiceInformer
             return "Ничего нет";
         }
 
-        var itemList = new List<Item>();
+        var itemList = new List<AppItem>();
         foreach (int value in inventoryValues)
         {
-            Item item = await GetItemAsync(value);
-            itemList.Add(item);
+            AppItem appItem = await GetItemAsync(value);
+            itemList.Add(appItem);
         }
     
-        Inventory inventory = await InventoryFaсtory.Create(itemList);
+        AppInventory appInventory = await AppInventoryFaсtory.Create(itemList);
 
-        return inventory.ToString();
+        return appInventory.ToString();
     }
 
-    public async Task<Item> GetItemAsync(int value)
+    public async Task<AppItem> GetItemAsync(int value)
     {
-        _valueItems.TryGetValue(value, out Item? item);
+        _valueItems.TryGetValue(value, out AppItem? item);
         
         if (item == null)
         {
             WTItem wtItem = await _httpService.GetItemAsync(value);
-            item = new Item(wtItem) { Value = value };
+            item = new AppItem(wtItem) { Value = value };
 
             try
             {

@@ -37,30 +37,33 @@ public class TelegramBackgroundService : BackgroundService, ITelegramNotificatio
         return Task.CompletedTask;
     }
     
-        private async Task HandleUpdateAsync(
+    private async Task HandleUpdateAsync(
         ITelegramBotClient botClient, 
         Update update, 
         CancellationToken cancellationToken)
     {
         if (update.Type != UpdateType.Message || update.Message?.Text == null)
             return;
+        
+        long chatId = update.Message.Chat.Id;
+        long messageFromId = update.Message.From.Id;
+        
+        // Фильтруем по ID пользователя
+        if (update.Message.From?.Id != _userId)
+        {
+            Console.WriteLine($"⚠️ Попытка доступа от неавторизованного пользователя:");
+            Console.WriteLine($"   ID: {messageFromId}");
+            Console.WriteLine($"   Имя: {update.Message.From?.FirstName} {update.Message.From?.LastName}");
+            Console.WriteLine($"   Username: @{update.Message.From?.Username}");
+            Console.WriteLine($"   Текст: {update.Message.Text}");
+            
+            return;
+        }
 
         IServiceScope serviceScope = _serviceProvider.CreateScope();
         var service = serviceScope.ServiceProvider.GetRequiredService<Service>();
         
         Console.WriteLine($"Получено сообщение от {update.Message.From?.FirstName}: {update.Message.Text}");
-        
-        long chatId = update.Message.Chat.Id;
-        long messageFromId = update.Message.From.Id;
-        
-        if (_userId != messageFromId)
-        {
-            await botClient.SendTextMessageAsync(
-                chatId,
-                "У вас нет доступа к этому боту.",
-                cancellationToken: cancellationToken);
-            return;
-        }
         
         switch (update.Message.Text.ToLower())
         {

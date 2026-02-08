@@ -3,7 +3,7 @@ using WTTrade.Models.WT_Website;
 
 namespace WTTrade.Models;
 
-public class Item
+public class AppItem
 {
     [JsonProperty("value")] public required int Value { get; set; } = 0;
     [JsonProperty("market_hash_name")]
@@ -26,7 +26,7 @@ public class Item
     [JsonProperty("sort_index")] public int SortIndex { get; set; } = 1;
 
 
-    public Item(WTItem wtItem)
+    public AppItem(WTItem wtItem)
     {
         var asset = wtItem.result.asset;
         MarketHashName = asset.market_hash_name;
@@ -56,7 +56,7 @@ public class Item
     }
 
     [JsonConstructor]
-    public Item() {}
+    public AppItem() {}
 
     public string GetNameInBold()
     {

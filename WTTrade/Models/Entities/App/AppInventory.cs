@@ -1,25 +1,25 @@
 ﻿namespace WTTrade.Models;
 
-public class Inventory
+public class AppInventory
 {
-    private readonly Dictionary<Item, int> _dictInventory;
+    private readonly Dictionary<AppItem, int> _dictInventory;
 
-    public Inventory(Dictionary<Item, int> dictInventory)
+    public AppInventory(Dictionary<AppItem, int> dictInventory)
     {
         _dictInventory = dictInventory;
     }
     
     public override string ToString()
     {
-        var setItems = new SortedSet<Item>(_dictInventory.Keys, new SortItemComparer());
+        var setItems = new SortedSet<AppItem>(_dictInventory.Keys, new SortItemComparer());
         List<string> stringItems = setItems.Select(item => item + " - в кол-ве " + _dictInventory[item]).ToList();
 
         return string.Join("\n", stringItems);
     }
     
-    private class SortItemComparer : IComparer<Item>
+    private class SortItemComparer : IComparer<AppItem>
     {
-        public int Compare(Item? item1, Item? item2)
+        public int Compare(AppItem? item1, AppItem? item2)
         {
             int sortingIndex1 = item1!.SortIndex;
             int sortingIndex2 = item2!.SortIndex;

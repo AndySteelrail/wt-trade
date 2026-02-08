@@ -79,7 +79,7 @@ public class ServiceTrader
     {
         WTOrderBrief wtOrderBrief = await _httpService.GetOrderBriefAsync(wtOrder.market);
         int value = await _serviceInformer.GetValueByHashNameAsync(wtOrder.market);
-        Item item = await _serviceInformer.GetItemAsync(value);
+        AppItem appItem = await _serviceInformer.GetItemAsync(value);
                     
         decimal orderPrice = Convert.ToDecimal(wtOrder.localPrice);
         decimal bestPrice = 0;
@@ -100,7 +100,7 @@ public class ServiceTrader
         
         WTHttpResponse wtHttpResponse = await _httpService.CancelOrderAsync(wtOrder.pairId, wtOrder.id);
         message = TraderMessages.CancelOrder(
-            item.GetNameInBold(),
+            appItem.GetNameInBold(),
             type,
             wtHttpResponse.Status());
 
@@ -114,14 +114,14 @@ public class ServiceTrader
         string type = "на продажу";
         string message = "Лот не нужно продавать";
 
-        Item item = await _serviceInformer.GetItemAsync(value);
+        AppItem appItem = await _serviceInformer.GetItemAsync(value);
         
-        if (_blackList.Contains(item.GetName()))
+        if (_blackList.Contains(appItem.GetName()))
         {
             return message;
         }
         
-        WTOrderBrief wtOrderBrief = await _httpService.GetOrderBriefAsync(item.GetMarketHashName());
+        WTOrderBrief wtOrderBrief = await _httpService.GetOrderBriefAsync(appItem.GetMarketHashName());
         
         decimal bestPrice = _priceCalculator.CalcSellPrice(wtOrderBrief, value);
         decimal price = _priceCalculator.CalcDiscountPrice(bestPrice, type);
@@ -134,7 +134,7 @@ public class ServiceTrader
 
         WTHttpResponse wtHttpResponse = await _httpService.CreateOrderSellAsync(asset.id, price, priceAfterCommission);
         message = TraderMessages.CreateOrder(
-            item.GetNameInBold(),
+            appItem.GetNameInBold(),
             type,
             price / 10000,
             1,
@@ -143,9 +143,9 @@ public class ServiceTrader
         return message;
     }
 
-    private async Task<string> CreateOrderBuyAsync(int value, int amount, Balance balance)
+    private async Task<string> CreateOrderBuyAsync(int value, int amount, AppBalance appBalance)
     {
-        decimal currentBalance = balance.Value;
+        decimal currentBalance = appBalance.Value;
         Console.WriteLine($"Текущий остаток по балансу: {currentBalance}");
         string type = "на покупку";
         if (currentBalance <= 10000m)
@@ -155,15 +155,15 @@ public class ServiceTrader
         
         string message = "Лот не нужно покупать";
 
-        Item item = await _serviceInformer.GetItemAsync(value);
+        AppItem appItem = await _serviceInformer.GetItemAsync(value);
         
-        if (_blackList.Contains(item.GetName()))
+        if (_blackList.Contains(appItem.GetName()))
         {
             return message;
         }
 
-        string nameInBold = item.GetNameInBold();
-        string hashName = item.GetMarketHashName();
+        string nameInBold = appItem.GetNameInBold();
+        string hashName = appItem.GetMarketHashName();
 
         WTOrderBrief wtOrderBrief;
         
@@ -195,7 +195,7 @@ public class ServiceTrader
                 allowableAmount,
                 wtHttpResponse.Status());
 
-            balance.Value -= allowableAmount * price;
+            appBalance.Value -= allowableAmount * price;
         }
         catch (Exception e)
         {
@@ -320,7 +320,7 @@ public class ServiceTrader
     private async Task CreateBuyOrders(Dictionary<int, int> shoppingList, long chatId, CancellationToken cancellationToken)
     {
         WTBalance currentWtBalance = await _httpService.GetBalanceAsync();
-        Balance balance = new Balance(
+        AppBalance appBalance = new AppBalance(
             currentWtBalance.GetValue());
         
         foreach (var pair in shoppingList)
@@ -329,7 +329,7 @@ public class ServiceTrader
 
             try
             {
-                string response = await CreateOrderBuyAsync(pair.Key, pair.Value, balance);
+                string response = await CreateOrderBuyAsync(pair.Key, pair.Value, appBalance);
                 if (response == "Лот не нужно покупать")
                 {
                     TryChangeValue(shoppingList, pair.Key, -pair.Value);

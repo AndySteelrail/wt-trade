@@ -1,10 +1,10 @@
 ﻿namespace WTTrade.Models;
 
-public class Balance
+public class AppBalance
 {
     public decimal Value { get; set; }
     
-    public Balance(decimal value)
+    public AppBalance(decimal value)
     {
         Value = value;
     }

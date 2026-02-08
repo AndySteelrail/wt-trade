@@ -1,230 +1,262 @@
-﻿using Npgsql;
+﻿using Microsoft.EntityFrameworkCore;
+using WTTrade.Data;
 using WTTrade.Models;
-
+using WTTrade.Models.DB;
 
 namespace WTTrade.Services;
 
 public class DataBaseService
 {
-    private readonly string _connectionString;
+    private readonly TradeDbContext _context;
 
-    public DataBaseService(string host, int port, string name, string userName, string password)
+    public DataBaseService(TradeDbContext context)
     {
-        _connectionString = $"Host={host};Port={port};Database={name};Username={userName};Password={password};";
+        _context = context;
     }
-
-    private T MakeQuery<T>(string query, Func<NpgsqlDataReader, T> mapper, params NpgsqlParameter[] parameters)
+    
+    public async Task<Dictionary<string, int>> GetWhitelistAsync()
     {
-        using (var _connection = new NpgsqlConnection(_connectionString))
+        try
         {
-            try
-            {
-                _connection.Open();
-
-                using (var command = new NpgsqlCommand(query, _connection))
-                {
-                    foreach (var param in parameters)
-                    {
-                        command.Parameters.Add(param);
-                    }
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        return mapper(reader);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException("Ошибка при выполнении запроса к базе данных.", ex);
-            }
+            return await _context.Whitelists
+                .AsNoTracking()
+                .ToDictionaryAsync(w => w.Name, w => w.Count);
         }
-    }
-
-    private void ExecuteNonQuery(string query, params NpgsqlParameter[] parameters)                                                                                                                                                                                                                                                        
-    {
-        using (var connection = new NpgsqlConnection(_connectionString))
+        catch (Exception ex)
         {
-            try
-            {
-                connection.Open();
-
-                using (var command = new NpgsqlCommand(query, connection))
-                {
-                    foreach (var param in parameters)
-                    {
-                        command.Parameters.Add(param);
-                    }
-
-                    command.ExecuteNonQuery();
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException("Ошибка при выполнении запроса к базе данных.", ex);
-            }
+            Console.WriteLine($"Ошибка при получении белого списка: {ex.Message}");
+            return new Dictionary<string, int>();
         }
     }
 
     public Dictionary<string, int> GetWhitelist()
     {
-        return MakeQuery<Dictionary<string, int>>(
-            "SELECT * FROM whitelist;",
-            reader =>
-            {
-                var dictionary = new Dictionary<string, int>();
-                while (reader.Read())
-                {
-                    string name = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
-                    int count = reader.IsDBNull(2) ? 0 : reader.GetInt32(2);
-                    dictionary[name] = count;
-                }
-                return dictionary;
-            });
+        try
+        {
+            return _context.Whitelists
+                .AsNoTracking()
+                .ToDictionary(w => w.Name, w => w.Count);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка при получении белого списка: {ex.Message}");
+            return new Dictionary<string, int>();
+        }
+    }
+    
+    public async Task<HashSet<string>> GetBlacklistAsync()
+    {
+        return await _context.Blacklists
+            .AsNoTracking()
+            .Select(b => b.Name)
+            .ToHashSetAsync();
     }
 
     public HashSet<string> GetBlacklist()
     {
-        return MakeQuery<HashSet<string>>(
-            "SELECT * FROM blacklist;",
-            reader =>
-            {
-                var set = new HashSet<string>();
-                while (reader.Read())
-                {
-                    string name = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
-                    set.Add(name);
-                }
-                return set;
-            });
+        return _context.Blacklists
+            .AsNoTracking()
+            .Select(b => b.Name)
+            .ToHashSet();
+    }
+    
+    public async Task<Dictionary<string, int>> GetHashNameValuesAsync()
+    {
+        return await _context.HashnameValues
+            .AsNoTracking()
+            .ToDictionaryAsync(h => h.Hashname, h => h.Value);
     }
 
     public Dictionary<string, int> GetHashNameValues()
     {
-        return MakeQuery<Dictionary<string, int>>(
-            "SELECT * FROM hashname_values;",
-            reader =>
-            {
-                var dictionary = new Dictionary<string, int>();
-                while (reader.Read())
-                {
-                    string hashName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
-                    int value = reader.IsDBNull(2) ? 0 : reader.GetInt32(2);
-                    dictionary[hashName] = value;
-                }
-                return dictionary;
-            });
+        return _context.HashnameValues
+            .AsNoTracking()
+            .ToDictionary(h => h.Hashname, h => h.Value);
+    }
+    
+    public async Task<Dictionary<string, int>> GetNameValuesAsync()
+    {
+        return await _context.NameValues
+            .AsNoTracking()
+            .ToDictionaryAsync(n => n.Name, n => n.Value);
     }
 
     public Dictionary<string, int> GetNameValues()
     {
-        return MakeQuery<Dictionary<string, int>>(
-            "SELECT * FROM name_values;",
-            reader =>
-            {
-                var dictionary = new Dictionary<string, int>();
-                while (reader.Read())
-                {
-                    string name = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
-                    int value = reader.IsDBNull(2) ? 0 : reader.GetInt32(2);
-                    dictionary[name] = value;
-                }
-                return dictionary;
-            });
+        return _context.NameValues
+            .AsNoTracking()
+            .ToDictionary(n => n.Name, n => n.Value);
+    }
+    
+    public async Task InsertHashNameValueAsync(string hashName, int value)
+    {
+        var entity = new HashnameValue
+        {
+            Hashname = hashName,
+            Value = value
+        };
+
+        await _context.HashnameValues.AddAsync(entity);
+        await _context.SaveChangesAsync();
     }
 
     public void InsertHashNameValue(string hashName, int value)
     {
-        ExecuteNonQuery(
-            "INSERT INTO hashname_values (hashname, value) VALUES (@hashname, @value);",
-            new NpgsqlParameter("@hashname", hashName),
-            new NpgsqlParameter("@value", value));
+        var entity = new HashnameValue
+        {
+            Hashname = hashName,
+            Value = value
+        };
+
+        _context.HashnameValues.Add(entity);
+        _context.SaveChanges();
+    }
+    
+    public async Task InsertNameValueAsync(string name, int value)
+    {
+        var entity = new NameValue
+        {
+            Name = name,
+            Value = value
+        };
+
+        await _context.NameValues.AddAsync(entity);
+        await _context.SaveChangesAsync();
     }
 
     public void InsertNameValue(string name, int value)
     {
-        ExecuteNonQuery(
-            "INSERT INTO name_values (name, value) VALUES (@name, @value);",
-            new NpgsqlParameter("@name", name),
-            new NpgsqlParameter("@value", value));
+        var entity = new NameValue
+        {
+            Name = name,
+            Value = value
+        };
+
+        _context.NameValues.Add(entity);
+        _context.SaveChanges();
     }
     
-    public void InsertItem(Item item)
+    public async Task InsertItemAsync(AppItem appItem)
     {
-        const string query = @"
-            INSERT INTO items (
-                value, 
-                market_hash_name, 
-                name, 
-                marketable, 
-                timestamp,
-                type,
-                quality,
-                country,
-                event_name,
-                sort_index
-            )
-            VALUES (
-                @value, 
-                @marketHashName, 
-                @name, 
-                @marketable, 
-                @timestamp,
-                @type,
-                @quality,
-                @country,
-                @eventName,
-                @sortIndex
-            )
-            ON CONFLICT (value) DO UPDATE SET
-                market_hash_name = EXCLUDED.market_hash_name,
-                name = EXCLUDED.name,
-                marketable = EXCLUDED.marketable,
-                timestamp = EXCLUDED.timestamp,
-                type = EXCLUDED.type,
-                quality = EXCLUDED.quality,
-                country = EXCLUDED.country,
-                event_name = EXCLUDED.event_name,
-                sort_index = EXCLUDED.sort_index;";
+        var dbItem = new Item
+        {
+            Value = appItem.Value,
+            MarketHashName = appItem.MarketHashName,
+            Name = appItem.Name,
+            Marketable = appItem.Marketable,
+            Timestamp = appItem.Timestamp,
+            Type = appItem.Type,
+            Quality = appItem.Quality,
+            Country = appItem.Country,
+            EventName = appItem.EventName,
+            SortIndex = appItem.SortIndex
+        };
+        
+        var existing = await _context.Items
+            .FirstOrDefaultAsync(i => i.Value == appItem.Value);
 
-        ExecuteNonQuery(query,
-            new NpgsqlParameter("@value", item.Value),
-            new NpgsqlParameter("@marketHashName", item.MarketHashName),
-            new NpgsqlParameter("@name", item.Name),
-            new NpgsqlParameter("@marketable", item.Marketable),
-            new NpgsqlParameter("@timestamp", item.Timestamp),
-            new NpgsqlParameter("@type", item.Type ?? (object)DBNull.Value),
-            new NpgsqlParameter("@quality", item.Quality ?? (object)DBNull.Value),
-            new NpgsqlParameter("@country", item.Country ?? (object)DBNull.Value),
-            new NpgsqlParameter("@eventName", item.EventName ?? (object)DBNull.Value),
-            new NpgsqlParameter("@sortIndex", item.SortIndex));
+        if (existing != null)
+        {
+            existing.MarketHashName = dbItem.MarketHashName;
+            existing.Name = dbItem.Name;
+            existing.Marketable = dbItem.Marketable;
+            existing.Timestamp = dbItem.Timestamp;
+            existing.Type = dbItem.Type;
+            existing.Quality = dbItem.Quality;
+            existing.Country = dbItem.Country;
+            existing.EventName = dbItem.EventName;
+            existing.SortIndex = dbItem.SortIndex;
+        }
+        else
+        {
+            await _context.Items.AddAsync(dbItem);
+        }
+
+        await _context.SaveChangesAsync();
     }
 
-    public Dictionary<int, Item> GetValueItems()
+    public void InsertItem(AppItem appItem)
     {
-        const string query = "SELECT * FROM items;";
-        
-        return MakeQuery(query, reader =>
+        var dbItem = new Item
         {
-            var result = new Dictionary<int, Item>();
-            while (reader.Read())
+            Value = appItem.Value,
+            MarketHashName = appItem.MarketHashName,
+            Name = appItem.Name,
+            Marketable = appItem.Marketable,
+            Timestamp = appItem.Timestamp,
+            Type = appItem.Type,
+            Quality = appItem.Quality,
+            Country = appItem.Country,
+            EventName = appItem.EventName,
+            SortIndex = appItem.SortIndex
+        };
+        
+        var existing = _context.Items
+            .FirstOrDefault(i => i.Value == appItem.Value);
+
+        if (existing != null)
+        {
+            existing.MarketHashName = dbItem.MarketHashName;
+            existing.Name = dbItem.Name;
+            existing.Marketable = dbItem.Marketable;
+            existing.Timestamp = dbItem.Timestamp;
+            existing.Type = dbItem.Type;
+            existing.Quality = dbItem.Quality;
+            existing.Country = dbItem.Country;
+            existing.EventName = dbItem.EventName;
+            existing.SortIndex = dbItem.SortIndex;
+        }
+        else
+        {
+            _context.Items.Add(dbItem);
+        }
+
+        _context.SaveChanges();
+    }
+    
+    public async Task<Dictionary<int, Item>> GetValueItemsAsync()
+    {
+        var items = await _context.Items
+            .AsNoTracking()
+            .ToListAsync();
+
+        return items.ToDictionary(
+            i => i.Value,
+            i => new Item
             {
-                var item = new Item
-                {
-                    Value = reader.GetInt32(0),
-                    MarketHashName = reader.GetString(1),
-                    Name = reader.GetString(2),
-                    Marketable = reader.GetBoolean(3),
-                    Timestamp = reader.GetInt64(4),
-                    Type = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    Quality = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    Country = reader.IsDBNull(7) ? null : reader.GetString(7),
-                    EventName = reader.IsDBNull(8) ? null : reader.GetString(8),
-                    SortIndex = reader.IsDBNull(9) ? 1 : reader.GetInt32(9)
-                };
-                result.Add(item.Value, item);
-            }
-            return result;
-        });
+                Value = i.Value,
+                MarketHashName = i.MarketHashName,
+                Name = i.Name,
+                Marketable = i.Marketable,
+                Timestamp = i.Timestamp,
+                Type = i.Type,
+                Quality = i.Quality,
+                Country = i.Country,
+                EventName = i.EventName,
+                SortIndex = i.SortIndex
+            });
+    }
+
+    public Dictionary<int, AppItem> GetValueItems()
+    {
+        var items = _context.Items
+            .AsNoTracking()
+            .ToList();
+
+        return items.ToDictionary(
+            i => i.Value,
+            i => new AppItem
+            {
+                Value = i.Value,
+                MarketHashName = i.MarketHashName,
+                Name = i.Name,
+                Marketable = i.Marketable,
+                Timestamp = i.Timestamp,
+                Type = i.Type,
+                Quality = i.Quality,
+                Country = i.Country,
+                EventName = i.EventName,
+                SortIndex = i.SortIndex
+            });
     }
 }
